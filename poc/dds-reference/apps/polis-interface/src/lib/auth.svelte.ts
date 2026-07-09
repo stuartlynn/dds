@@ -12,22 +12,36 @@
  */
 
 import { browser } from "$app/environment";
+import { base } from "$app/paths";
 import { createBrowserAuth, type BrowserAuth } from "@dds/client/auth/browser";
 import type { DDSClient } from "@dds/client";
 
+const SCOPE = "atproto transition:generic";
+
+function isLoopbackHost(hostname: string): boolean {
+  return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "[::1]";
+}
+
 /**
- * The Bluesky OAuth loopback client uses a `client_id` of the form
- * `http://localhost?redirect_uri=...&scope=...`. The literal `localhost` is part of the spec
- * for the client_id itself, but the redirect_uri INSIDE it must use a loopback IP.
+ * Resolve the OAuth `client_id` for the current environment.
+ *
+ * - On a loopback host (local dev), use the RFC 8252 loopback client: a `client_id` of the
+ *   form `http://localhost?redirect_uri=...&scope=...`. The literal `localhost` is part of the
+ *   spec for the client_id itself; the redirect_uri INSIDE it must use a loopback IP.
+ * - Anywhere else (production), the `client_id` is the URL of our hosted
+ *   `client-metadata.json` document, which Bluesky fetches to learn our redirect URIs and
+ *   scopes. This requires the app to be served over HTTPS.
  */
-function buildClientId(redirectUri: string): string {
-  return (
-    "http://localhost?" +
-    new URLSearchParams({
-      redirect_uri: redirectUri,
-      scope: "atproto transition:generic",
-    }).toString()
-  );
+function resolveClientId(): string {
+  const { origin, hostname } = window.location;
+  if (isLoopbackHost(hostname)) {
+    const redirectUri = `${origin}${base}/oauth/callback`;
+    return (
+      "http://localhost?" +
+      new URLSearchParams({ redirect_uri: redirectUri, scope: SCOPE }).toString()
+    );
+  }
+  return `${origin}${base}/client-metadata.json`;
 }
 
 /**
@@ -74,8 +88,7 @@ class AuthStore {
     if (!browser || this.#initialized) return;
     if (redirectToLoopbackIp()) return; // will reload as 127.0.0.1
     try {
-      const redirectUri = `${window.location.origin}/oauth/callback`;
-      const a = await createBrowserAuth({ clientId: buildClientId(redirectUri) });
+      const a = await createBrowserAuth({ clientId: resolveClientId() });
       this.#auth = a;
       const restored = a.current();
       if (restored) {
