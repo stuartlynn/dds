@@ -111,13 +111,14 @@ services:
       PUBLIC_INDEXER_API_URL: /indexer
 
   caddy:
-    image: caddy:2-alpine
+    build:
+      context: ..
+      dockerfile: docker/caddy.prod.Dockerfile
     restart: unless-stopped
     ports:
       - "${HOST_HTTP_PORT:-8080}:80"
       - "${HOST_HTTPS_PORT:-8443}:443"
     volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - dds-caddy-data:/data
       - dds-caddy-config:/config
     environment:
