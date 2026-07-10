@@ -115,13 +115,17 @@ services:
       context: ..
       dockerfile: docker/caddy.prod.Dockerfile
     restart: unless-stopped
-    ports:
-      - "${HOST_HTTP_PORT:-8080}:80"
-      - "${HOST_HTTPS_PORT:-8443}:443"
+    # No host `ports:` publishing. Coolify's own proxy terminates TLS and routes the
+    # domain to this service's internal port 80 over the shared `coolify` network.
+    # Set the domain (and "Ports Exposes: 80") on the caddy service in the Coolify UI.
+    expose:
+      - "80"
     volumes:
       - dds-caddy-data:/data
       - dds-caddy-config:/config
     environment:
+      # Caddy only serves plain HTTP internally; Coolify's proxy handles TLS.
+      # Keep this as ":80" so Caddy does NOT try to provision its own certs.
       PUBLIC_HOST: ${PUBLIC_HOST:-:80}
     depends_on:
       - polis-interface
